@@ -22,6 +22,8 @@ def ml_loop():
     # === Here is the execution order of the loop === #
     # 1. Put the initialization code here.
     ball_served = False
+    last_ball_pos = (0, 0)
+    width = 200
 
     # 2. Inform the game process that ml process is ready before start the loop.
     comm.ml_ready()
@@ -43,18 +45,31 @@ def ml_loop():
             continue
 
         # 3.3. Put the code here to handle the scene information
-        ball_pos = scene_info.ball
+        curr_ball_pos = scene_info.ball
         pf_pos = scene_info.platform
+
         action = PlatformAction.NONE
+        if curr_ball_pos[1] > last_ball_pos[1]:
+            curr_x = curr_ball_pos[0]
+            height = pf_pos[1] - curr_ball_pos[1]
+            left = False if curr_ball_pos[0] > last_ball_pos[0] else True
+            while height > 0:
+                wall = 0 if left else width
+                move_len = min(height, abs(wall - curr_x))
+                height -= move_len
+                curr_x = curr_x - move_len if left else curr_x + move_len
+                left = not left
+
+            if curr_x < pf_pos[0]:
+                action = PlatformAction.MOVE_LEFT
+            elif curr_x > pf_pos[0] + 40:
+                action = PlatformAction.MOVE_RIGHT
+
+        last_ball_pos = curr_ball_pos
 
         # 3.4. Send the instruction for this frame to the game process
         if not ball_served:
             comm.send_instruction(scene_info.frame, PlatformAction.SERVE_TO_LEFT)
             ball_served = True
         else:
-            if ball_pos[0] < pf_pos[0]:
-                action = PlatformAction.MOVE_LEFT
-            elif ball_pos[0] > pf_pos[0]:
-                action = PlatformAction.MOVE_RIGHT
-
             comm.send_instruction(scene_info.frame, action)
