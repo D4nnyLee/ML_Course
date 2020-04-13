@@ -47,22 +47,16 @@ def ml_loop():
         # 3.3. Put the code here to handle the scene information
         curr_ball_pos = scene_info.ball
         pf_pos = scene_info.platform
+        vector = [curr_ball_pos[0] - last_ball_pos[0], curr_ball_pos[1] - last_ball_pos[1]]
 
         action = PlatformAction.NONE
-        if curr_ball_pos[1] > last_ball_pos[1]:
-            curr_x = curr_ball_pos[0]
-            height = pf_pos[1] - curr_ball_pos[1]
-            left = False if curr_ball_pos[0] > last_ball_pos[0] else True
-            while height > 0:
-                wall = 0 if left else width
-                move_len = min(height, abs(wall - curr_x))
-                height -= move_len
-                curr_x = curr_x - move_len if left else curr_x + move_len
-                left = not left
+        if vector[1] > 0:
+            pred_x = curr_ball_pos[0] + vector[0] * (pf_pos[1] - curr_ball_pos[1]) / vector[1] # regardless bounding
+            pred_x = int(width - abs(width - abs(pred_x) % (2 * width))) # consider bounding
 
-            if curr_x < pf_pos[0]:
+            if pred_x <= pf_pos[0] + 10:
                 action = PlatformAction.MOVE_LEFT
-            elif curr_x > pf_pos[0] + 40:
+            elif pred_x >= pf_pos[0] + 30:
                 action = PlatformAction.MOVE_RIGHT
 
         last_ball_pos = curr_ball_pos
