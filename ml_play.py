@@ -2,6 +2,8 @@
 The template of the main script of the machine learning process
 """
 
+import os
+
 import games.arkanoid.communication as comm
 from games.arkanoid.communication import ( \
     SceneInfo, GameStatus, PlatformAction
@@ -58,6 +60,11 @@ def ml_loop():
                 action = PlatformAction.MOVE_LEFT
             elif pred_x >= pf_pos[0] + 30:
                 action = PlatformAction.MOVE_RIGHT
+
+        # Add randomness
+        rn = os.urandom(2)
+        if rn[0] % 2 == 1 and abs(pred_x - pf_pos[0] - 20) < 5:
+            action = (PlatformAction.NONE, PlatformAction.MOVE_LEFT, PlatformAction.MOVE_RIGHT)[rn[1] % 3]
 
         last_ball_pos = curr_ball_pos
 
