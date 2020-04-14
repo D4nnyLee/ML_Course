@@ -3,6 +3,8 @@ The template of the main script of the machine learning process
 """
 
 import os
+import numpy as np
+import pickle
 
 import games.arkanoid.communication as comm
 from games.arkanoid.communication import ( \
@@ -24,8 +26,10 @@ def ml_loop():
     # === Here is the execution order of the loop === #
     # 1. Put the initialization code here.
     ball_served = False
-    last_ball_pos = (0, 0)
-    width = 200
+    last_ball_pos = (93, 93)
+    model_name = os.path.join(os.path.dirname(__file__), 'knn_model.pickle')
+    with open(model_name, 'rb') as fd:
+        clf = pickle.load(fd)
 
     # 2. Inform the game process that ml process is ready before start the loop.
     comm.ml_ready()
@@ -48,30 +52,22 @@ def ml_loop():
 
         # 3.3. Put the code here to handle the scene information
         curr_ball_pos = scene_info.ball
-        pf_pos = scene_info.platform
         vector = [curr_ball_pos[0] - last_ball_pos[0], curr_ball_pos[1] - last_ball_pos[1]]
+        features = []
+        features.append(curr_ball_pos[0])
+        features.append(curr_ball_pos[1])
+        features.append(scene_info.platform[0])
+        features.append(vector[0])
+        features.append(vector[1])
 
-        action = PlatformAction.NONE
-        if vector[1] > 0:
-            pred_x = curr_ball_pos[0] + vector[0] * (pf_pos[1] - curr_ball_pos[1]) / vector[1] # regardless bounding
-            pred_x = int(width - abs(width - abs(pred_x) % (2 * width))) # consider bounding
-
-            if pred_x <= pf_pos[0] + 10:
-                action = PlatformAction.MOVE_LEFT
-            elif pred_x >= pf_pos[0] + 30:
-                action = PlatformAction.MOVE_RIGHT
-
-        # Add randomness
-        rn = os.urandom(2)
-        if rn[0] % 2 == 1 and abs(pred_x - pf_pos[0] - 20) < 5:
-            action = (PlatformAction.NONE, PlatformAction.MOVE_LEFT, PlatformAction.MOVE_RIGHT)[rn[1] % 3]
-
-        last_ball_pos = curr_ball_pos
+        features = np.array(features)
+        features = features.reshape((-1, 5))
 
         # 3.4. Send the instruction for this frame to the game process
         if not ball_served:
-            rn = os.urandom(1)
-            comm.send_instruction(scene_info.frame, (PlatformAction.SERVE_TO_LEFT, PlatformAction.SERVE_TO_RIGHT)[rn[0] % 2])
+            comm.send_instruction(scene_info.frame, (PlatformAction.SERVE_TO_LEFT, PlatformAction.SERVE_TO_RIGHT)[os.urandom(1)[0] % 2])
             ball_served = True
         else:
+            action = (PlatformAction.NONE, PlatformAction.MOVE_LEFT, PlatformAction.MOVE_RIGHT)[clf.predict(features)[0]]
             comm.send_instruction(scene_info.frame, action)
+            print(str(action))
