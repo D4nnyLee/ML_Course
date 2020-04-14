@@ -70,7 +70,8 @@ def ml_loop():
 
         # 3.4. Send the instruction for this frame to the game process
         if not ball_served:
-            comm.send_instruction(scene_info.frame, PlatformAction.SERVE_TO_LEFT)
+            rn = os.urandom(1)
+            comm.send_instruction(scene_info.frame, (PlatformAction.SERVE_TO_LEFT, PlatformAction.SERVE_TO_RIGHT)[rn[0] % 2])
             ball_served = True
         else:
             comm.send_instruction(scene_info.frame, action)
