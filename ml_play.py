@@ -7,8 +7,8 @@ from mlgame.communication import ml as comm
 import pickle
 import os
 
-model_name_1p = 'MLP_1P.pickle'
-model_name_2p = 'MLP_2P.pickle'
+model_name_1p = 'KNN_1P.pickle'
+model_name_2p = 'KNN_2P.pickle'
 
 with open(os.path.join(os.path.dirname(__file__), model_name_1p), 'rb') as f:
     mlp_1p = pickle.load(f)
@@ -35,7 +35,7 @@ def ml_loop(side: str):
     # === Here is the execution order of the loop === #
     # 1. Put the initialization code here
     ball_served = False
-    last_blocker_pos = (85, 240)
+    last_blocker_pos_x = 85
 
     def move_to(curr: int, pred: int) -> {0, 1, 2}:
         if pred - 3 < curr and curr < pred + 3:
@@ -46,15 +46,9 @@ def ml_loop(side: str):
             return 2 # Left
 
     def predict_x(mlp) -> int:
-        nonlocal last_blocker_pos
-        curr_blocker_pos = scene_info['blocker']
-        
-        blocker_speed = (last_blocker_pos[0] - curr_blocker_pos[0], last_blocker_pos[1] - curr_blocker_pos[1])
-
-        dest = mlp.predict([[*scene_info['ball'], *scene_info['ball_speed'], *curr_blocker_pos, *blocker_speed]])[0]
-
-        last_blocker_pos = curr_blocker_pos
-
+        nonlocal last_blocker_pos_x
+        dest = mlp.predict([[*scene_info['ball'], *scene_info['ball_speed'], *scene_info['blocker'], last_blocker_pos_x - scene_info['blocker'][0]]])[0]
+        last_blocker_pos_x = scene_info['blocker'][0]
         return dest
 
     # 2. Inform the game process that ml process is ready
@@ -85,8 +79,8 @@ def ml_loop(side: str):
             ball_served = True
         else:
             if side == '1P':
-                command = move_to(scene_info['platform_1P'][0] + 20, predict_x(mlp_1p))
+                command = move_to(scene_info['platform_1P'][0] + 10, predict_x(mlp_1p))
             else:
-                command = move_to(scene_info['platform_2P'][0] + 20, predict_x(mlp_2p))
+                command = move_to(scene_info['platform_2P'][0] + 10, predict_x(mlp_2p))
 
             comm.send_to_game({'frame': scene_info['frame'], 'command': ['NONE', 'MOVE_RIGHT', 'MOVE_LEFT'][command]})
