@@ -27,6 +27,9 @@ class MLPlay:
         grid = [[0 for i in range(5)] for j in range(5)]
 
         self.car_pos = scene_info[self.player]
+        if len(self.car_pos) != 2:
+            return 'SPEED'
+
         for car in scene_info['cars_info']:
             if car['id'] == self.player_no:
                 continue
