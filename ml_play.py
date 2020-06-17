@@ -13,6 +13,7 @@ class MLPlay:
             self.player_no = 3
         self.car_pos = (0,0)                                       # pos initial
         self.lanes = [35, 105, 175, 245, 315, 385, 455, 525, 595]  # lanes center
+        self.last_command = []
         pass
 
     def update(self, scene_info):
@@ -28,6 +29,9 @@ class MLPlay:
         if len(self.car_pos) != 2:
             return 'SPEED'
 
+        if (self.car_pos[0] - 35) % 70 != 0:
+            return self.last_command
+
         for car in scene_info['cars_info']:
             if car['id'] == self.player_no:
                 continue
@@ -37,8 +41,11 @@ class MLPlay:
             y = car['pos'][1] - self.car_pos[1]
             cmp = lambda a: 1 if a >= 0 else -1
 
-            offset = (abs(x) // 70, abs(y) // 120)
-            remain = (abs(x) %  70, abs(y) %  120)
+            offset = [abs(x) // 70, abs(y) // 120]
+            remain = [abs(x) %  70, abs(y) %  120]
+            for i in range(2):
+                if remain[i] < 10:
+                    remain[i] = 0
 
             if max(offset[0], offset[1]) > 2:
                 continue
@@ -64,13 +71,54 @@ class MLPlay:
                 for j in range(len(grid)):
                     grid[j][2 - i] = None
 
-        pprint.pprint(grid)
-        print()
-
         # Run BFS and get the command
+        goal = None
+        q = queue.Queue()
+        q.put([2, 2])
+        need_brake = True if grid[2][2] == None else False
+        grid[2][2] = [0, 0]
+        while not q.empty():
+            t = q.get()
+            direction = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+
+            goal = t
+            if t[0] == 0:
+                break
+
+            for d in direction:
+                p = [t[0] + d[0], t[1] + d[1]]
+                if 0 <= p[0] < len(grid[0]) and 0 <= p[1] < len(grid) and grid[p[0]][p[1]] == 0:
+                    grid[p[0]][p[1]] = [-d[0], -d[1]]
+                    q.put(p)
+
+        pprint.pprint(grid)
+
+        if need_brake:
+            self.last_command = ['BRAKE']
+            return self.last_command
+
+        command = ['SPEED']
+        if grid[1][2] == None:
+            command.remove('SPEED')
+
+        last_move = [0, 0]
+        while goal != [2, 2]:
+            last_move = grid[goal[0]][goal[1]]
+            goal[0] += last_move[0]
+            goal[1] += last_move[1]
+
+        if last_move == [-1, 0]:
+            command.append('BRAKE')
+        elif last_move == [0, 1]:
+            command.append('MOVE_LEFT')
+        elif last_move == [0, -1]:
+            command.append('MOVE_RIGHT')
 
         # return the command
-        return "SPEED"
+        print(command)
+        print()
+        self.last_command = command
+        return command
 
     def reset(self):
         """
