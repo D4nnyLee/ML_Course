@@ -11,9 +11,7 @@ class MLPlay:
             self.player_no = 2
         elif self.player == "player4":
             self.player_no = 3
-        self.car_vel = 0                            # speed initial
-        self.car_pos = (0,0)                        # pos initial
-        self.car_lane = self.car_pos[0] // 70       # lanes 0 ~ 8
+        self.car_pos = (0,0)                                       # pos initial
         self.lanes = [35, 105, 175, 245, 315, 385, 455, 525, 595]  # lanes center
         pass
 
@@ -53,6 +51,18 @@ class MLPlay:
                 grid[y_idx][x_idx + cmp(x)] = None
             if remain[1] and 0 <= y_idx + cmp(y) < 5:
                 grid[y_idx + cmp(y)][x_idx] = None
+
+        ## Right border
+        for i in range(1, 3):
+            if self.car_pos[0] + i * 70 > self.lanes[-1]:
+                for j in range(len(grid)):
+                    grid[j][2 + i] = None
+
+        ## Left border
+        for i in range(1, 3):
+            if self.car_pos[0] - i * 70 < self.lanes[0]:
+                for j in range(len(grid)):
+                    grid[j][2 - i] = None
 
         pprint.pprint(grid)
         print()
