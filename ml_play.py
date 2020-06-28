@@ -1,5 +1,3 @@
-import pprint, queue
-
 class MLPlay:
     def __init__(self, player):
         self.player = player
@@ -11,9 +9,10 @@ class MLPlay:
             self.player_no = 2
         elif self.player == "player4":
             self.player_no = 3
-        self.car_pos = (0,0)                                       # pos initial
+        self.car_pos = (0,0)                                       # initial position
         self.lanes = [35, 105, 175, 245, 315, 385, 455, 525, 595]  # lanes center
-        self.last_command = []
+        self.in_cd = 1                                             # cold down time for 'BRAKE' command
+        self.vel = 0                                               # initial velocity
         pass
 
     def update(self, scene_info):
@@ -22,102 +21,68 @@ class MLPlay:
         if scene_info["status"] != "ALIVE":
             return "RESET"
         
-        # Generate the matrix based on relative position
-        grid = [[0 for i in range(5)] for j in range(5)]
-
-        self.car_pos = scene_info[self.player]
-        if len(self.car_pos) != 2:
+        if len(scene_info[self.player]) < 2:
             return 'SPEED'
 
-        if (self.car_pos[0] - 35) % 70 != 0:
-            return self.last_command
-
-        for car in scene_info['cars_info']:
-            if car['id'] == self.player_no:
-                continue
-
-            ## Calculate relative position
-            x = car['pos'][0] - self.car_pos[0]
-            y = car['pos'][1] - self.car_pos[1]
-            cmp = lambda a: 1 if a >= 0 else -1
-
-            offset = [abs(x) // 70, abs(y) // 120]
-            remain = [abs(x) %  70, abs(y) %  120]
-            for i in range(2):
-                if remain[i] < 10:
-                    remain[i] = 0
-
-            if max(offset[0], offset[1]) > 2:
-                continue
-
-            x_idx = 2 + cmp(x) * offset[0]
-            y_idx = 2 + cmp(y) * offset[1]
-            grid[y_idx][x_idx] = None
-
-            if remain[0] and 0 <= x_idx + cmp(x) < 5:
-                grid[y_idx][x_idx + cmp(x)] = None
-            if remain[1] and 0 <= y_idx + cmp(y) < 5:
-                grid[y_idx + cmp(y)][x_idx] = None
-
-        ## Right border
-        for i in range(1, 3):
-            if self.car_pos[0] + i * 70 > self.lanes[-1]:
-                for j in range(len(grid)):
-                    grid[j][2 + i] = None
-
-        ## Left border
-        for i in range(1, 3):
-            if self.car_pos[0] - i * 70 < self.lanes[0]:
-                for j in range(len(grid)):
-                    grid[j][2 - i] = None
-
-        # Run BFS and get the command
-        goal = None
-        q = queue.Queue()
-        q.put([2, 2])
-        need_brake = True if grid[2][2] == None else False
-        grid[2][2] = [0, 0]
-        while not q.empty():
-            t = q.get()
-            direction = [[-1, 0], [1, 0], [0, -1], [0, 1]]
-
-            goal = t
-            if t[0] == 0:
+        '''
+        Get basic information
+        '''
+        for each_car in scene_info['cars_info']:
+            if each_car['id'] == self.player_no:
+                self.vel = each_car['velocity']
                 break
+        self.car_pos = scene_info[self.player]
 
-            for d in direction:
-                p = [t[0] + d[0], t[1] + d[1]]
-                if 0 <= p[0] < len(grid[0]) and 0 <= p[1] < len(grid) and grid[p[0]][p[1]] == 0:
-                    grid[p[0]][p[1]] = [-d[0], -d[1]]
-                    q.put(p)
+        '''
+        Get possible move direction
+        '''
+        possible_dir = [[0, -1], [1, 0], [-1, 0]]
+        get_dir = lambda n : -1 if n < 0 else 1
+        for each_car in scene_info['cars_info']:
+            if each_car['id'] == self.player_no: # ignore me
+                continue
+            if each_car['pos'][1] > self.car_pos[1]: # ignore the cars that behind me
+                continue
 
-        pprint.pprint(grid)
+            x_distance = each_car['pos'][0] - self.car_pos[0] # x distance between each car and me
+            y_distance = each_car['pos'][1] - self.car_pos[1] # y distance between each car and me
 
-        if need_brake:
-            self.last_command = ['BRAKE']
-            return self.last_command
+            '''
+            left and right
+            '''
+            if abs(x_distance) < 90 and abs(y_distance) < 80: # too close
+                try:
+                    possible_dir.remove([get_dir(x_distance), 0])
+                except:
+                    pass
 
-        command = ['SPEED']
-        if grid[1][2] == None:
-            command.remove('SPEED')
+            '''
+            forward
+            '''
+            if abs(x_distance) < 45 and abs(y_distance) < 160 and each_car['velocity'] < self.vel:
+                try:
+                    possible_dir.remove([0, -1])
+                except:
+                    pass
 
-        last_move = [0, 0]
-        while goal != [2, 2]:
-            last_move = grid[goal[0]][goal[1]]
-            goal[0] += last_move[0]
-            goal[1] += last_move[1]
+        '''
+        Determine commands to be executed
+        '''
+        command = []
 
-        if last_move == [-1, 0]:
-            command.append('BRAKE')
-        elif last_move == [0, 1]:
-            command.append('MOVE_LEFT')
-        elif last_move == [0, -1]:
-            command.append('MOVE_RIGHT')
+        self.in_cd -= 1
+        if [0, -1] in possible_dir:
+            command.append('SPEED')
+        else:
+            if [-1, 0] in possible_dir and self.car_pos[0] > 25:
+                command.append('MOVE_LEFT')
+            elif [1, 0] in possible_dir and self.car_pos[0] < 605:
+                command.append('MOVE_RIGHT')
 
-        # return the command
-        print(command)
-        print()
-        self.last_command = command
+            if not self.in_cd:
+                command.append('BRAKE')
+                self.in_cd = 3
+
         return command
 
     def reset(self):
